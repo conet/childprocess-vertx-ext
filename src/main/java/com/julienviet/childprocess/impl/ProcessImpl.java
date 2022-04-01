@@ -22,8 +22,7 @@ import com.julienviet.childprocess.StreamOutput;
 import com.zaxxer.nuprocess.NuProcess;
 import com.zaxxer.nuprocess.NuProcessBuilder;
 import com.zaxxer.nuprocess.NuProcessHandler;
-import io.vertx.core.Context;
-import io.vertx.core.Handler;
+import io.vertx.core.*;
 import io.vertx.core.buffer.Buffer;
 import com.julienviet.childprocess.Process;
 
@@ -112,11 +111,12 @@ public class ProcessImpl implements NuProcessHandler, Process, StreamOutput {
   }
 
   @Override
-  public StreamOutput write(Buffer buffer) {
+  public void write(Buffer buffer, Handler<AsyncResult<Void>> handler) {
     boolean hasPending;
     synchronized (this) {
       if (stdinStatus == CLOSING || stdinStatus == CLOSED) {
-        throw new IllegalStateException();
+        handler.handle(Future.failedFuture(new IllegalStateException()));
+        return;
       }
       stdinPending.add(buffer);
       stdinSize += buffer.length();
@@ -126,7 +126,14 @@ public class ProcessImpl implements NuProcessHandler, Process, StreamOutput {
       wantWrite = true;
       process.wantWrite();
     }
-    return this;
+    handler.handle(Future.succeededFuture());
+  }
+
+  @Override
+  public Future<Void> write(Buffer buffer) {
+    Promise<Void> provide = Promise.promise();
+    this.write(buffer, provide);
+    return provide.future();
   }
 
   @Override
@@ -148,7 +155,7 @@ public class ProcessImpl implements NuProcessHandler, Process, StreamOutput {
   }
 
   @Override
-  public void close() {
+  public void end(Handler<AsyncResult<Void>> handler) {
     synchronized (this) {
       switch (stdinStatus) {
         case OPEN:
@@ -157,19 +164,24 @@ public class ProcessImpl implements NuProcessHandler, Process, StreamOutput {
               stdinStatus = CLOSED;
             } else {
               stdinStatus = CLOSING;
+              handler.handle(Future.succeededFuture());
               return;
             }
           } else {
             // We close the stream before the process started
             stdinStatus = CLOSING;
+            handler.handle(Future.succeededFuture());
             return;
           }
           break;
         default:
+          handler.handle(Future.succeededFuture());
           return;
       }
     }
+
     process.closeStdin(false);
+    handler.handle(Future.succeededFuture());
   }
 
   //

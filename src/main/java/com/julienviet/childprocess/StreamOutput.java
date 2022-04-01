@@ -18,6 +18,8 @@
 package com.julienviet.childprocess;
 
 import io.vertx.codegen.annotations.VertxGen;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.streams.WriteStream;
@@ -34,7 +36,10 @@ public interface StreamOutput extends WriteStream<Buffer> {
   StreamOutput exceptionHandler(Handler<Throwable> handler);
 
   @Override
-  StreamOutput write(Buffer buffer);
+  Future<Void> write(Buffer buffer);
+
+  @Override
+  void write(Buffer buffer, Handler<AsyncResult<Void>> handler);
 
   @Override
   StreamOutput setWriteQueueMaxSize(int i);
@@ -42,16 +47,10 @@ public interface StreamOutput extends WriteStream<Buffer> {
   @Override
   StreamOutput drainHandler(Handler<Void> handler);
 
-  /**
-   * Calls {code close()}.
-   */
   @Override
-  default void end() {
-    close();
-  }
+  void end(Handler<AsyncResult<Void>> handler);
 
-  /**
-   * Close the stream.
-   */
-  void close();
+  default void close() {
+    end();
+  }
 }
